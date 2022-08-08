@@ -6,6 +6,7 @@
 //
 
 import UIKit
+import CoreData
 
 class ToDoTableViewController: UITableViewController {
     
@@ -13,10 +14,15 @@ class ToDoTableViewController: UITableViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        guard let managedContext = (UIApplication.shared.delegate as? AppDelegate)?.persistentContainer.viewContext else { return }
+        let fetchRequest = Item.fetchRequest()
+        do {
+            items = try managedContext.fetch(fetchRequest)
+        } catch {}
     }
     
-    @IBAction func presentNewItemViewController() {
-        if let newItemViewController = storyboard?.instantiateViewController(withIdentifier: "New Item") as? NewItemTableViewController {
+    @IBAction func presentAddItemViewController() {
+        if let newItemViewController = storyboard?.instantiateViewController(withIdentifier: "Add Item") as? AddItemTableViewController {
             newItemViewController.delegate = self
             present(UINavigationController(rootViewController: newItemViewController), animated: true)
         }
@@ -30,9 +36,10 @@ class ToDoTableViewController: UITableViewController {
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "Item", for: indexPath)
-        cell.textLabel?.text = items[indexPath.row].title
-        if let formattedDate = items[indexPath.row].formattedDate {
-            cell.detailTextLabel?.text = formattedDate
+        let item = items[indexPath.row]
+        cell.textLabel?.text = item.value(forKey: #keyPath(Item.title)) as? String
+        if let date = item.value(forKey: #keyPath(Item.date)) as? Date {
+            cell.detailTextLabel?.text = date.formatted()
         } else {
             cell.detailTextLabel?.text = ""
         }
@@ -41,7 +48,9 @@ class ToDoTableViewController: UITableViewController {
 
     override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
         if editingStyle == .delete {
-            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [items[indexPath.row].identifier.uuidString])
+            (UIApplication.shared.delegate as? AppDelegate)?.persistentContainer.viewContext.delete(items[indexPath.row])
+            (UIApplication.shared.delegate as? AppDelegate)?.saveContext()
+            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [items[indexPath.row].identifier?.uuidString ?? ""])
             items.remove(at: indexPath.row)
             tableView.deleteRows(at: [indexPath], with: .fade)
         }
@@ -53,8 +62,8 @@ class ToDoTableViewController: UITableViewController {
 
 }
 
-extension ToDoTableViewController: NewItemDelegate {
-    func addNewItem(_ item: Item) {
+extension ToDoTableViewController: AddItemDelegate {
+    func addItem(_ item: Item) {
         items.append(item)
         tableView.reloadData()
     }

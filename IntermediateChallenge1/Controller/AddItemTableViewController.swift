@@ -1,23 +1,23 @@
 //
-//  NewItemTableViewController.swift
+//  AddItemTableViewController.swift
 //  IntermediateChallenge1
 //
 //  Created by Fawzi Rifai on 07/08/2022.
 //
 
 import UIKit
-import UserNotifications
+import CoreData
 
-protocol NewItemDelegate {
-    func addNewItem(_ item: Item)
+protocol AddItemDelegate {
+    func addItem(_ item: Item)
 }
 
-class NewItemTableViewController: UITableViewController {
+class AddItemTableViewController: UITableViewController {
     
     @IBOutlet var titleTextField: UITextField!
     @IBOutlet var dateSwitch: UISwitch!
     @IBOutlet var datePicker: UIDatePicker!
-    var delegate: NewItemDelegate?
+    var delegate: AddItemDelegate?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -26,31 +26,33 @@ class NewItemTableViewController: UITableViewController {
     
     @objc func toggleDate() {
         if dateSwitch.isOn {
-            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { success, error in
-            }
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { _, _ in }
         }
         tableView.reloadData()
     }
     
     @IBAction func addItem() {
+        guard let managedContext = (UIApplication.shared.delegate as? AppDelegate)?.persistentContainer.viewContext else { return }
+        let item = Item(context: managedContext)
         if let title = titleTextField.text {
             if dateSwitch.isOn {
-                let item = Item(title: title, date: datePicker.date)
-                delegate?.addNewItem(item)
+                item.setValue(title, forKey: #keyPath(Item.title))
+                item.setValue(UUID(), forKey: #keyPath(Item.identifier))
+                item.setValue(datePicker.date, forKey: #keyPath(Item.date))
                 let content = UNMutableNotificationContent()
                 content.title = "Intermediate Challenge 1"
-                content.body = item.title
+                content.body = title
                 content.sound = UNNotificationSound.default
                 let trigger = UNCalendarNotificationTrigger(dateMatching: Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: datePicker.date), repeats: false)
-                let request = UNNotificationRequest(identifier: item.identifier.uuidString, content: content, trigger: trigger)
+                let request = UNNotificationRequest(identifier: item.identifier?.uuidString ?? "", content: content, trigger: trigger)
                 UNUserNotificationCenter.current().add(request)
             } else {
-                delegate?.addNewItem(Item(title: title, date: nil))
+                item.setValue(title, forKey: #keyPath(Item.title))
             }
-            
+            (UIApplication.shared.delegate as? AppDelegate)?.saveContext()
+            delegate?.addItem(item)
         }
         dismiss(animated: true)
-        
     }
     
     @IBAction func dismissViewController() {
@@ -86,7 +88,7 @@ class NewItemTableViewController: UITableViewController {
 
 }
 
-extension NewItemTableViewController: UITextFieldDelegate {
+extension AddItemTableViewController: UITextFieldDelegate {
     func textFieldDidChangeSelection(_ textField: UITextField) {
         if textField.text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true {
             navigationItem.rightBarButtonItem?.isEnabled = false
